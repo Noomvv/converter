@@ -1,13 +1,13 @@
 name: Build Windows Portable EXE
 
 on:
-  # Запускается вручную из вкладки Actions на GitHub
   workflow_dispatch:
-
-  # Автоматически при создании тега v* (например git tag v1.0 && git push --tags)
   push:
     tags:
       - "v*"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # убирает предупреждение о Node.js 20
 
 jobs:
   build-windows:
@@ -31,17 +31,39 @@ jobs:
       - name: Build portable EXE
         run: pyinstaller converter.spec
 
-      - name: Upload EXE as artifact
+      - name: Check build output
+        run: |
+          echo "=== Files in dist/ ==="
+          dir dist
+          echo "=== EXE size ==="
+          (Get-Item dist\ImageConverter.exe).length / 1MB
+
+      - name: Create README for friend
+        run: |
+          echo "Image Converter — portable app" > dist\README.txt
+          echo "" >> dist\README.txt
+          echo "HOW TO RUN:" >> dist\README.txt
+          echo "1. Double-click ImageConverter.exe" >> dist\README.txt
+          echo "2. If Windows shows a blue warning (SmartScreen):" >> dist\README.txt
+          echo "   - Click 'More info'" >> dist\README.txt
+          echo "   - Click 'Run anyway'" >> dist\README.txt
+          echo "" >> dist\README.txt
+          echo "No installation needed. No Python needed." >> dist\README.txt
+
+      - name: Upload EXE + README as artifact
         uses: actions/upload-artifact@v4
         with:
           name: ImageConverter-Windows
-          path: dist/ImageConverter.exe
+          path: |
+            dist/ImageConverter.exe
+            dist/README.txt
           retention-days: 30
 
-      # Создаёт GitHub Release с EXE при push тега v*
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/ImageConverter.exe
+          files: |
+            dist/ImageConverter.exe
+            dist/README.txt
           generate_release_notes: true
