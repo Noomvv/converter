@@ -1,0 +1,5 @@
+Pillow>=10.0.0
+pillow-heif>=0.13.0
+
+# Dev / build (не нужно для запуска скрипта напрямую)
+# pyinstaller>=6.0
