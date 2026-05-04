@@ -222,8 +222,11 @@ class ConverterApp(tk.Tk):
 
     # ── Построение UI ────────────────────────────────────────────────────────────
     def _build_ui(self):
+        # Компактнее на Windows (разные метрики шрифтов)
+        header_pady = 12 if sys.platform == "win32" else 18
+
         # Заголовок
-        header = tk.Frame(self, bg=COLORS["surface"], pady=18)
+        header = tk.Frame(self, bg=COLORS["surface"], pady=header_pady)
         header.pack(fill="x")
         tk.Label(
             header, text="🖼  Image Converter",
@@ -231,14 +234,42 @@ class ConverterApp(tk.Tk):
             bg=COLORS["surface"], fg=COLORS["text"],
         ).pack()
         tk.Label(
-            header, text="Конвертация изображений в JPEG с автоматическим сжатием",
+            header, text="Конвертация изображений в выбранный формат с автоматическим сжатием",
             font=(FONT_FAMILY, 11),
             bg=COLORS["surface"], fg=COLORS["text_muted"],
         ).pack(pady=(2, 0))
 
-        # Контент
-        content = tk.Frame(self, bg=COLORS["bg"], padx=28, pady=20)
-        content.pack(fill="both", expand=True)
+        # ── Скроллируемая область контента ──────────────────────────────────────
+        # Используем Canvas + Frame, чтобы на любом экране/масштабе
+        # кнопки «Начать» и «Остановить» были доступны через скролл
+        outer = tk.Frame(self, bg=COLORS["bg"])
+        outer.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(outer, bg=COLORS["bg"], highlightthickness=0)
+        scrollbar = tk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        content = tk.Frame(canvas, bg=COLORS["bg"], padx=28, pady=16)
+        content_id = canvas.create_window((0, 0), window=content, anchor="nw")
+
+        def _on_frame_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_canvas_configure(event):
+            canvas.itemconfig(content_id, width=event.width)
+
+        def _on_mousewheel(event):
+            if sys.platform == "win32":
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            else:
+                canvas.yview_scroll(int(-1 * event.delta), "units")
+
+        content.bind("<Configure>", _on_frame_configure)
+        canvas.bind("<Configure>", _on_canvas_configure)
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         self._build_path_section(content)
         self._build_settings_section(content)
@@ -711,6 +742,18 @@ class ConverterApp(tk.Tk):
 
 # ── Точка входа ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    # Включаем DPI-awareness на Windows — иначе tkinter размывается
+    # при масштабировании 125% / 150% и контент не помещается
+    if sys.platform == "win32":
+        try:
+            from ctypes import windll
+            windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            try:
+                windll.user32.SetProcessDPIAware()
+            except Exception:
+                pass
+
     try:
         from PIL import Image  # noqa: F401
     except ImportError:
